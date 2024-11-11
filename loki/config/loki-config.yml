@@ -1,0 +1,43 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  target: single-binary  # Simplified target configuration
+
+ingester:
+  wal:
+    dir: /loki/data/wal  # Explicit path for WAL directory
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/data/index  # Set a specific path for the index directory
+    cache_location: /loki/data/boltdb-cache
+    shared_store: filesystem
+  filesystem:
+    directory: /loki/data/chunks  # Set a specific path for the chunks directory
+
+limits_config:
+  max_streams_per_user: 0
+
+chunk_store_config:
+  max_look_back_period: 0s
+
+table_manager:
+  retention_deletes_enabled: false
+  retention_period: 0s
+

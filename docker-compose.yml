@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  # Dropbox container
+  dropbox:
+    build:
+      context: ./dropbox
+    environment:
+      - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN}
+    depends_on:
+      - prometheus
+    networks:
+      - app-network
+
+  # Webhook container
+  webhook:
+    build:
+      context: ./webhook
+    ports:
+      - "5000:5000"
+    depends_on:
+      - prometheus
+    networks:
+      - app-network
+
+  # gRPC container
+  grpc-server:
+    build:
+      context: ./grpc
+    ports:
+      - "50051:50051"
+    depends_on:
+      - prometheus
+    networks:
+      - app-network
+
+  # Prometheus container for monitoring
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9091:9090"   # Host port 9091 mapped to container port 9090 to avoid conflicts
+    networks:
+      - app-network
+
+  # Grafana container for visualization
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # Set default password (replace with secure value)
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - app-network
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning  # For automatic provisioning of Loki and Prometheus as data sources
+
+  # Loki container for log aggregation
+  loki:
+    image: grafana/loki:2.8.2
+    ports:
+      - "3100:3100"
+    environment:
+      - LOKI_ENABLE_COMPACTOR=false  # Explicitly disable the compactor
+    volumes:
+      - ./loki/config/loki-config.yml:/etc/loki/local-config.yaml  # Loki configuration
+      - ./loki/data:/loki/data  # Mounting ./loki/data as a writable directory for WAL and storage
+    networks:
+      - app-network
+
+  # Promtail container for log forwarding to Loki
+  promtail:
+    image: grafana/promtail:2.8.2
+    volumes:
+      - /var/log:/var/log                  # Access to local logs
+      - /var/lib/docker/containers:/var/lib/docker/containers  # Access to Docker container logs
+      - ./promtail/config/promtail-config.yml:/etc/promtail/config.yml  # Promtail configuration
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - app-network
+    depends_on:
+      - loki
+
+networks:
+  app-network:
+    driver: bridge
+
